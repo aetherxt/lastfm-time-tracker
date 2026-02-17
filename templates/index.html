@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Last.fm Daily Listening Stats</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'lastfm-red': '#d51007',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body class="bg-gray-50 text-gray-800 antialiased">
+    <div class="max-w-4xl mx-auto p-4 md:p-6">
+        <h1 class="text-3xl font-bold text-lastfm-red border-b-2 border-lastfm-red pb-3 mb-6">Last.fm Listening Stats
+        </h1>
+
+        <div class="flex mb-8 bg-gray-800 rounded-lg overflow-hidden">
+            <a href="/"
+                class="py-3 px-4 text-white flex-grow text-center hover:bg-gray-700 transition-colors {% if active_page == 'daily' %}bg-lastfm-red{% endif %}">
+                Daily Stats
+            </a>
+            <a href="/weekly{% if username %}?username={{ username }}{% endif %}"
+                class="py-3 px-4 text-white flex-grow text-center hover:bg-gray-700 transition-colors {% if active_page == 'weekly' %}bg-lastfm-red{% endif %}">
+                Weekly Stats
+            </a>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-sm mb-8">
+            <form method="POST" id="stats-form">
+                <div class="mb-4">
+                    <label for="username" class="block font-medium mb-1">Last.fm Username:</label>
+                    <input type="text" id="username" name="username" required value="{{ username if username else '' }}"
+                        placeholder="Enter Last.fm username"
+                        class="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-lastfm-red">
+                </div>
+
+                <div class="mb-4">
+                    <label for="date" class="block font-medium mb-1">Select Date:</label>
+                    <input type="date" id="date" name="date" required
+                        value="{{ selected_date if selected_date else '' }}"
+                        class="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-lastfm-red">
+                </div>
+
+                <button type="submit" id="submit-btn"
+                    class="bg-lastfm-red text-white py-2 px-4 rounded hover:bg-red-800 transition-colors">
+                    Get Daily Listening Stats
+                </button>
+            </form>
+        </div>
+
+        <div id="loading" class="text-center p-6 hidden">
+            <p class="mb-2">Fetching listening data...</p>
+            <div class="w-12 h-12 border-4 border-lastfm-red border-t-transparent rounded-full animate-spin mx-auto">
+            </div>
+        </div>
+
+        {% if error %}
+        <div class="bg-red-100 text-red-800 p-4 rounded mb-6">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        {% if scrobbles %}
+        <div class="bg-white p-6 rounded-lg shadow-sm mb-8">
+            <h2 class="text-2xl font-bold mb-2">Daily Stats for {{ username }}</h2>
+            <h3 class="text-lg text-gray-600 mb-4">{{ selected_date }}</h3>
+
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6 p-4 bg-gray-50 rounded-lg">
+                <div class="mb-2 md:mb-0">
+                    <span class="text-gray-600">Total Tracks:</span>
+                    <span class="font-bold text-xl ml-2">{{ total_scrobbles }}</span>
+                </div>
+                <div>
+                    <span class="text-gray-600">Total Listening Time:</span>
+                    <span class="font-bold text-xl ml-2">{{ total_time.hours }}h {{ total_time.minutes }}m {{
+                        total_time.seconds }}s</span>
+                </div>
+            </div>
+
+            <h3 class="text-xl font-semibold mb-4 border-b pb-2">Scrobble History</h3>
+
+            <div class="space-y-4">
+                {% for track in scrobbles %}
+                <div class="flex items-center p-3 border-b border-gray-100 hover:bg-gray-50">
+                    <div class="w-12 h-12 flex-shrink-0 mr-4">
+                        {% if track.image %}
+                        <img src="{{ track.image }}" alt="Album art" class="w-full h-full object-cover rounded">
+                        {% else %}
+                        <div class="w-full h-full bg-gray-200 rounded flex items-center justify-center">
+                            <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3">
+                                </path>
+                            </svg>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="flex-grow min-w-0">
+                        <p class="font-medium truncate">{{ track.name }}</p>
+                        <p class="text-sm text-gray-600 truncate">{{ track.artist }}</p>
+                        <p class="text-xs text-gray-500">
+                            <span class="mr-2">{{ track.timestamp|timestamp_to_time }}</span>
+                            <span>Duration: ({{ track.duration // 60 }}:{% if (track.duration % 60) < 10 %}0{% endif %}{{ track.duration % 60 }})</span>
+                        </p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Pagination controls -->
+            {% if page_count > 1 %}
+            <div class="flex justify-center items-center mt-8 space-x-2">
+                {% if current_page > 1 %}
+                <a href="?username={{ username }}&date={{ selected_date }}&page={{ current_page - 1 }}"
+                    class="px-3 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+                    Previous
+                </a>
+                {% else %}
+                <span class="px-3 py-2 bg-gray-100 text-gray-400 rounded">Previous</span>
+                {% endif %}
+
+                {% for i in range(1, page_count + 1) %}
+                {% if i == current_page %}
+                <span class="w-10 h-10 flex items-center justify-center bg-lastfm-red text-white rounded">{{ i }}</span>
+                {% elif i <= 3 or i>= page_count - 2 or (i >= current_page - 1 and i <= current_page + 1) %} <a
+                        href="?username={{ username }}&date={{ selected_date }}&page={{ i }}"
+                        class="w-10 h-10 flex items-center justify-center bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+                        {{ i }}
+                        </a>
+                        {% elif i == 4 and current_page > 5 or i == page_count - 3 and current_page < page_count - 4 %}
+                            <span class="px-1">...</span>
+                            {% endif %}
+                            {% endfor %}
+
+                            {% if current_page < page_count %} <a
+                                href="?username={{ username }}&date={{ selected_date }}&page={{ current_page + 1 }}"
+                                class="px-3 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300">
+                                Next
+                                </a>
+                                {% else %}
+                                <span class="px-3 py-2 bg-gray-100 text-gray-400 rounded">Next</span>
+                                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% elif request.method == 'POST' and not error %}
+        <p class="text-center text-gray-600 italic p-8">No scrobbles found for {{ username }} on {{ selected_date }}</p>
+        {% endif %}
+
+        <footer class="mt-12 pt-6 border-t border-gray-200 text-center text-gray-600 text-sm">
+            <p>This app uses the Last.fm API to fetch your listening data.</p>
+        </footer>
+    </div>
+
+    <script>
+        document.getElementById('stats-form').addEventListener('submit', function () {
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('submit-btn').disabled = true;
+        });
+
+        // Set today's date as the default if no date is selected
+        window.onload = function () {
+            const dateInput = document.getElementById('date');
+            if (!dateInput.value) {
+                const today = new Date();
+                const year = today.getFullYear();
+                const month = String(today.getMonth() + 1).padStart(2, '0');
+                const day = String(today.getDate()).padStart(2, '0');
+                dateInput.value = `${year}-${month}-${day}`;
+            }
+        };
+    </script>
+</body>
+
+</html>

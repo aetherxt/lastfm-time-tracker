@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Last.fm Weekly Listening Stats</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'lastfm-red': '#d51007',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body class="bg-gray-50 text-gray-800 antialiased">
+    <div class="max-w-4xl mx-auto p-4 md:p-6">
+        <h1 class="text-3xl font-bold text-lastfm-red border-b-2 border-lastfm-red pb-3 mb-6">Last.fm Listening Stats
+        </h1>
+
+        <div class="flex mb-8 bg-gray-800 rounded-lg overflow-hidden">
+            <a href="/{% if username %}?username={{ username }}{% endif %}"
+                class="py-3 px-4 text-white flex-grow text-center hover:bg-gray-700 transition-colors {% if active_page == 'daily' %}bg-lastfm-red{% endif %}">
+                Daily Stats
+            </a>
+            <a href="/weekly"
+                class="py-3 px-4 text-white flex-grow text-center hover:bg-gray-700 transition-colors {% if active_page == 'weekly' %}bg-lastfm-red{% endif %}">
+                Weekly Stats
+            </a>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-sm mb-8">
+            <form method="POST" id="stats-form">
+                <div class="mb-4">
+                    <label for="username" class="block font-medium mb-1">Last.fm Username:</label>
+                    <input type="text" id="username" name="username" required value="{{ username if username else '' }}"
+                        placeholder="Enter Last.fm username"
+                        class="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-lastfm-red">
+                </div>
+
+                <div class="mb-4">
+                    <label for="start_date" class="block font-medium mb-1">Select Week Start Date:</label>
+                    <input type="date" id="start_date" name="start_date" required
+                        value="{{ start_date if start_date else '' }}"
+                        class="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-lastfm-red">
+                </div>
+
+                <button type="submit" id="submit-btn"
+                    class="bg-lastfm-red text-white py-2 px-4 rounded hover:bg-red-800 transition-colors">
+                    Get Weekly Listening Stats
+                </button>
+            </form>
+        </div>
+
+        <div id="loading" class="text-center p-6 hidden">
+            <p class="mb-2">Fetching weekly listening data...</p>
+            <p class="mb-4">This will take a while if this is the first time you use this.</p>
+            <div class="w-12 h-12 border-4 border-lastfm-red border-t-transparent rounded-full animate-spin mx-auto">
+            </div>
+        </div>
+
+        {% if error %}
+        <div class="bg-red-100 text-red-800 p-4 rounded mb-6">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        {% if weekly_data and weekly_totals %}
+        <div class="bg-white p-6 rounded-lg shadow-sm mb-8">
+            <h2 class="text-2xl font-bold mb-2">Weekly Listening Stats for {{ username }}</h2>
+            <p class="text-lg text-gray-600 mb-4">Week of {{ start_date }} to {{ weekly_data[6].date }}</p>
+
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6 p-4 bg-gray-50 rounded-lg">
+                <div class="mb-2 md:mb-0">
+                    <span class="text-gray-600">Total Tracks:</span>
+                    <span class="font-bold text-xl ml-2">{{ weekly_totals.total_tracks }}</span>
+                </div>
+                <div>
+                    <span class="text-gray-600">Total Listening Time:</span>
+                    <span class="font-bold text-xl ml-2">{{ weekly_totals.hours }}h {{ weekly_totals.minutes }}m</span>
+                </div>
+            </div>
+        </div>
+
+        <h3 class="text-xl font-semibold mb-6 text-center">Daily Listening Time</h3>
+        <div class="relative w-full h-[400px] bg-white p-6 md:p-8 rounded-lg mb-8">
+            <!-- Y-axis label moved inside the container -->
+            <div class="absolute left-4 top-1/2 transform -translate-y-1/2 -rotate-90 text-gray-600 text-sm">
+                Hours
+            </div>
+
+            <!-- Y-axis -->
+            <div id="y-axis"
+                class="absolute left-14 top-2 bottom-16 flex flex-col justify-between text-gray-500 text-xs"></div>
+
+            <!-- Chart container with increased left padding and reduced spacing -->
+            <div class="absolute left-24 right-4 top-2 bottom-16 flex items-end justify-between">
+                {% for day in weekly_data %}
+                <div class="relative h-full flex flex-col items-center justify-end" style="width: 11%;">
+                    <div id="bar-{{ loop.index0 }}" data-hours="{{ day.hours }}" data-minutes="{{ day.minutes }}"
+                        data-seconds="{{ day.total_seconds }}"
+                        class="w-full max-w-[36px] bg-lastfm-red transition-all duration-500 ease-in-out relative"
+                        style="height: 0%; border-radius: 6px 6px 0 0;">
+                        <!-- Time label positioned absolutely at the top of the bar -->
+                        <div class="bar-label absolute whitespace-nowrap text-xs font-medium text-gray-700"
+                            style="bottom: calc(100% + 5px); left: 50%; transform: translateX(-50%);">
+                            {{ day.hours }}h {{ day.minutes }}m
+                        </div>
+                    </div>
+                    <!-- Increased bottom spacing for dates -->
+                    <div class="absolute -bottom-12 text-center text-xs text-gray-700">
+                        {{ day.day_name }}<br>{{ day.short_date }}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-sm">
+            <h3 class="text-xl font-semibold mb-4 border-b pb-2">Daily Summary</h3>
+
+            <div class="divide-y divide-gray-100">
+                {% for day in weekly_data %}
+                <div class="py-3 flex justify-between items-center">
+                    <div class="font-medium">
+                        {{ day.day_name }} <span class="text-gray-500">({{ day.date }})</span>
+                    </div>
+                    <div class="text-gray-700">
+                        {{ day.hours }}h {{ day.minutes }}m <span class="text-gray-500">({{ day.scrobble_count }}
+                            tracks)</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% elif request.method == 'POST' and not error %}
+        <p class="text-center text-gray-600 italic p-8">No listening data found for the selected week.</p>
+        {% endif %}
+
+        <footer class="mt-12 pt-6 border-t border-gray-200 text-center text-gray-600 text-sm">
+            <p>This app uses the Last.fm API to fetch your listening data.</p>
+        </footer>
+    </div>
+
+    <script>
+        document.getElementById('stats-form').addEventListener('submit', function () {
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('submit-btn').disabled = true;
+        });
+
+        // Set date to 6 days ago by default (to include current day)
+        window.onload = function () {
+            const dateInput = document.getElementById('start_date');
+            if (!dateInput.value) {
+                const today = new Date();
+                // Set to 6 days ago instead of 7
+                const startDate = new Date(today);
+                startDate.setDate(today.getDate() - 6);
+
+                const year = startDate.getFullYear();
+                const month = String(startDate.getMonth() + 1).padStart(2, '0');
+                const day = String(startDate.getDate()).padStart(2, '0');
+                dateInput.value = `${year}-${month}-${day}`;
+            }
+
+            // Initialize bar chart if data exists
+            initializeChart();
+        };
+
+        function initializeChart() {
+            const bars = document.querySelectorAll('[id^="bar-"]');
+            if (bars.length === 0) return;
+
+            // Find the maximum hours for scaling
+            let maxSeconds = 0;
+            bars.forEach(bar => {
+                const seconds = parseInt(bar.dataset.seconds || 0);
+                if (seconds > maxSeconds) maxSeconds = seconds;
+            });
+
+            // Add padding to max hours (at least 10 hours for scale or actual max + 2)
+            const maxHours = Math.max(10, Math.ceil(maxSeconds / 3600) + 2);
+
+            // Create y-axis labels
+            const yAxis = document.getElementById('y-axis');
+            if (yAxis) {
+                yAxis.innerHTML = '';
+                // Create 6 evenly spaced labels (0h, 2h, 4h, 6h, 8h, 10h, etc.)
+                const yAxisSteps = 6;
+                const hourStep = Math.ceil(maxHours / (yAxisSteps - 1));
+                const roundedMaxHours = hourStep * (yAxisSteps - 1);
+
+                for (let i = yAxisSteps - 1; i >= 0; i--) {
+                    const hours = (hourStep * i);
+                    const label = document.createElement('div');
+                    label.textContent = `${hours}h`;
+                    label.className = 'text-gray-600';
+                    yAxis.appendChild(label);
+                }
+
+                // Scale the bars properly
+                bars.forEach(bar => {
+                    const seconds = parseInt(bar.dataset.seconds || 0);
+                    const heightPercentage = (seconds / (roundedMaxHours * 3600)) * 100;
+                    // Make sure bars don't exceed 100% height
+                    setTimeout(() => {
+                        bar.style.height = `${Math.min(heightPercentage, 100)}%`;
+                    }, 100); // Small delay for animation
+                });
+            }
+        }
+    </script>
+</body>
+
+</html>
