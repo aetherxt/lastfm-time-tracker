@@ -21,8 +21,16 @@
 
 <body class="bg-gray-50 text-gray-800 antialiased">
     <div class="max-w-4xl mx-auto p-4 md:p-6">
-        <h1 class="text-3xl font-bold text-lastfm-red border-b-2 border-lastfm-red pb-3 mb-6">Last.fm Listening Stats
-        </h1>
+        <div class="flex justify-between items-center border-b-2 border-lastfm-red pb-3 mb-6 mt-10">
+            <h1 class="text-3xl font-bold text-lastfm-red">Last.fm Listening Stats</h1>
+
+            <form method="POST" id="username-form" class="flex items-center gap-2">
+                <input type="hidden" name="start_date" id="header-date">
+                <input type="text" id="username" name="username" required value="{{ username if username else '' }}"
+                    placeholder="Enter Last.fm username"
+                    class="p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-lastfm-red text-sm w-48">
+            </form>
+        </div>
 
         <div class="flex mb-8 bg-gray-800 rounded-lg overflow-hidden">
             <a href="/{% if username %}?username={{ username }}{% endif %}"
@@ -37,12 +45,7 @@
 
         <div class="bg-white p-6 rounded-lg shadow-sm mb-8">
             <form method="POST" id="stats-form">
-                <div class="mb-4">
-                    <label for="username" class="block font-medium mb-1">Last.fm Username:</label>
-                    <input type="text" id="username" name="username" required value="{{ username if username else '' }}"
-                        placeholder="Enter Last.fm username"
-                        class="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-lastfm-red">
-                </div>
+                <input type="hidden" name="username" value="{{ username }}">
 
                 <div class="mb-4">
                     <label for="start_date" class="block font-medium mb-1">Select Week Start Date:</label>
@@ -52,7 +55,7 @@
                 </div>
 
                 <button type="submit" id="submit-btn"
-                    class="bg-lastfm-red text-white py-2 px-4 rounded hover:bg-red-800 transition-colors">
+                    class="bg-lastfm-red text-white py-2 px-4 rounded hover:bg-red-800 transition-colors w-full md:w-auto">
                     Get Weekly Listening Stats
                 </button>
             </form>
@@ -74,7 +77,8 @@
         {% if weekly_data and weekly_totals %}
         <div class="bg-white p-6 rounded-lg shadow-sm mb-8">
             <h2 class="text-2xl font-bold mb-2">Weekly Listening Stats for {{ username }}</h2>
-            <p class="text-lg text-gray-600 mb-4">Week of {{ start_date }} to {{ weekly_data[6].date }}</p>
+            <p class="text-lg text-gray-600 mb-4">Week of {{ start_date|date_format }} to {{
+                weekly_data[6].date|date_format }}</p>
 
             <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6 p-4 bg-gray-50 rounded-lg">
                 <div class="mb-2 md:mb-0">
@@ -97,7 +101,7 @@
 
             <!-- Y-axis -->
             <div id="y-axis"
-                class="absolute left-14 top-2 bottom-16 flex flex-col justify-between text-gray-500 text-xs"></div>
+                class="absolute left-14 top-2 bottom-16 flex flex-col justify-between text-gray-500 text-xs mt-3"></div>
 
             <!-- Chart container with increased left padding and reduced spacing -->
             <div class="absolute left-24 right-4 top-2 bottom-16 flex items-end justify-between">
@@ -126,16 +130,19 @@
             <h3 class="text-xl font-semibold mb-4 border-b pb-2">Daily Summary</h3>
 
             <div class="divide-y divide-gray-100">
-                {% for day in weekly_data %}
-                <div class="py-3 flex justify-between items-center">
-                    <div class="font-medium">
-                        {{ day.day_name }} <span class="text-gray-500">({{ day.date }})</span>
+                {% for day in weekly_data|reverse %}
+                <a href="/?username={{ username }}&date={{ day.date }}"
+                    class="block hover:bg-gray-50 transition-colors">
+                    <div class="py-3 mx-5 flex justify-between items-center">
+                        <div class="font-medium">
+                            {{ day.day_name }} <span class="text-gray-500">({{ day.date|date_format }})</span>
+                        </div>
+                        <div class="text-gray-700">
+                            {{ day.hours }}h {{ day.minutes }}m <span class="text-gray-500">({{ day.scrobble_count }}
+                                tracks)</span>
+                        </div>
                     </div>
-                    <div class="text-gray-700">
-                        {{ day.hours }}h {{ day.minutes }}m <span class="text-gray-500">({{ day.scrobble_count }}
-                            tracks)</span>
-                    </div>
-                </div>
+                </a>
                 {% endfor %}
             </div>
         </div>
@@ -149,15 +156,44 @@
     </div>
 
     <script>
-        document.getElementById('stats-form').addEventListener('submit', function () {
-            document.getElementById('loading').classList.remove('hidden');
-            document.getElementById('submit-btn').disabled = true;
-        });
+        // Sync dates between forms
+        const dateInput = document.getElementById('start_date');
+        const headerDateInput = document.getElementById('header-date');
+        const usernameInput = document.getElementById('username');
+        const hiddenUsernameInput = document.querySelector('#stats-form input[type="hidden"][name="username"]');
+
+        if (dateInput && headerDateInput) {
+            headerDateInput.value = dateInput.value;
+            dateInput.addEventListener('change', function () {
+                headerDateInput.value = this.value;
+            });
+        }
+
+        // Sync username to hidden field on change
+        if (usernameInput && hiddenUsernameInput) {
+            usernameInput.addEventListener('input', function () {
+                hiddenUsernameInput.value = this.value;
+            });
+        }
+
+        const statsForm = document.getElementById('stats-form');
+        if (statsForm) {
+            statsForm.addEventListener('submit', function () {
+                document.getElementById('loading').classList.remove('hidden');
+                document.getElementById('submit-btn').disabled = true;
+            });
+        }
+
+        const usernameForm = document.getElementById('username-form');
+        if (usernameForm) {
+            usernameForm.addEventListener('submit', function () {
+                document.getElementById('loading').classList.remove('hidden');
+            });
+        }
 
         // Set date to 6 days ago by default (to include current day)
         window.onload = function () {
-            const dateInput = document.getElementById('start_date');
-            if (!dateInput.value) {
+            if (dateInput && !dateInput.value) {
                 const today = new Date();
                 // Set to 6 days ago instead of 7
                 const startDate = new Date(today);
@@ -167,6 +203,12 @@
                 const month = String(startDate.getMonth() + 1).padStart(2, '0');
                 const day = String(startDate.getDate()).padStart(2, '0');
                 dateInput.value = `${year}-${month}-${day}`;
+
+                // Also update header date if it exists
+                if (headerDateInput) headerDateInput.value = dateInput.value;
+            } else if (dateInput && headerDateInput) {
+                // Ensure header date is synced on load if value exists
+                headerDateInput.value = dateInput.value;
             }
 
             // Initialize bar chart if data exists

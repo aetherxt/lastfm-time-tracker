@@ -21,11 +21,13 @@ API_KEY = "acbc44e8e15a6a470e3fc3372feea719"  # Replace with your Last.fm API ke
 API_URL = "http://ws.audioscrobbler.com/2.0/"
 
 # Pagination settings
-ITEMS_PER_PAGE = 25
+DEFAULT_ITEMS_PER_PAGE = 10
 
 # CSV cache file path
 DURATION_CACHE_FILE = "song_durations.csv"
+DAILY_CACHE_FILE = "daily_stats.json"
 cache_lock = threading.Lock()  # Lock for thread-safe CSV operations
+daily_cache_lock = threading.Lock()  # Lock for thread-safe JSON operations
 
 
 # Load song duration cache from CSV
@@ -48,6 +50,44 @@ def load_song_cache():
 
 # Initialize song duration cache
 song_duration_cache = load_song_cache()
+
+
+# Load daily stats cache
+def load_daily_stats_cache():
+    cache = {}
+    if os.path.exists(DAILY_CACHE_FILE):
+        try:
+            with open(DAILY_CACHE_FILE, "r", encoding="utf-8") as file:
+                data = json.load(file)
+                if "daily_stats" in data:
+                    cache = data["daily_stats"]
+            logger.info(f"Loaded daily stats for {len(cache)} entries")
+        except Exception as e:
+            logger.error(f"Error loading daily stats cache: {e}")
+    return cache
+
+
+# Initialize daily stats cache
+daily_stats_cache = load_daily_stats_cache()
+
+
+# Save daily stats to cache
+def save_daily_stats_to_cache(username, date_str, stats):
+    with daily_cache_lock:
+        try:
+            # Update in-memory cache
+            if username not in daily_stats_cache:
+                daily_stats_cache[username] = {}
+
+            daily_stats_cache[username][date_str] = stats
+
+            # Write to file
+            with open(DAILY_CACHE_FILE, "w", encoding="utf-8") as file:
+                json.dump({"daily_stats": daily_stats_cache}, file, indent=4)
+
+            logger.debug(f"Saved daily stats for {username} on {date_str}")
+        except Exception as e:
+            logger.error(f"Error saving daily stats to cache: {e}")
 
 
 # Save a song to the cache
@@ -74,6 +114,18 @@ def save_song_to_cache(artist, track_name, duration):
             logger.error(f"Error saving song to cache: {e}")
 
 
+@app.template_filter("date_format")
+def date_format(value, format="%m-%d-%Y"):
+    """Format a date string (YYYY-MM-DD) to a readable format."""
+    if not value:
+        return ""
+    try:
+        date_obj = datetime.strptime(str(value), "%Y-%m-%d")
+        return date_obj.strftime(format)
+    except ValueError:
+        return value
+
+
 @app.template_filter("timestamp_to_time")
 def timestamp_to_time(timestamp):
     """Convert a Unix timestamp to a readable time format."""
@@ -91,6 +143,13 @@ def index():
     current_page = 1
     page_count = 0
     total_scrobbles = 0
+    per_page = DEFAULT_ITEMS_PER_PAGE
+
+    # Get parameters
+    if request.method == "POST":
+        per_page = int(request.form.get("per_page", DEFAULT_ITEMS_PER_PAGE))
+    else:
+        per_page = int(request.args.get("per_page", DEFAULT_ITEMS_PER_PAGE))
 
     # Get username from query parameter (when switching tabs)
     if (
@@ -119,11 +178,11 @@ def index():
             total_scrobbles = len(all_scrobbles)
 
             # Calculate page count
-            page_count = math.ceil(total_scrobbles / ITEMS_PER_PAGE)
+            page_count = math.ceil(total_scrobbles / per_page)
 
             # Paginate the scrobbles
-            start_idx = (current_page - 1) * ITEMS_PER_PAGE
-            end_idx = start_idx + ITEMS_PER_PAGE
+            start_idx = (current_page - 1) * per_page
+            end_idx = start_idx + per_page
             scrobbles = all_scrobbles[start_idx:end_idx]
 
             if not scrobbles:
@@ -153,10 +212,10 @@ def index():
                 total_scrobbles = len(all_scrobbles)
 
                 # Calculate page count
-                page_count = math.ceil(total_scrobbles / ITEMS_PER_PAGE)
+                page_count = math.ceil(total_scrobbles / per_page)
 
                 # Get only the first page of scrobbles
-                scrobbles = all_scrobbles[:ITEMS_PER_PAGE]
+                scrobbles = all_scrobbles[:per_page]
 
                 if not scrobbles:
                     error = f"No scrobbles found for {username} on {selected_date}"
@@ -174,6 +233,7 @@ def index():
         current_page=current_page,
         page_count=page_count,
         total_scrobbles=total_scrobbles,
+        per_page=per_page,
         active_page="daily",
     )
 
@@ -245,6 +305,7 @@ def weekly_stats():
 def get_weekly_listening_data(username, start_date_str):
     """Get listening data for a full week starting from the given date."""
     start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
+    today_str = datetime.now().strftime("%Y-%m-%d")
 
     # Initialize weekly data
     weekly_data = []
@@ -254,14 +315,39 @@ def get_weekly_listening_data(username, start_date_str):
         current_date = start_date + timedelta(days=day_offset)
         day_str = current_date.strftime("%Y-%m-%d")
 
-        # Get scrobbles for this day
-        try:
-            scrobbles, total_time = get_scrobbles_and_time(username, day_str)
-        except Exception as e:
-            logger.error(f"Error getting scrobbles for {username} on {day_str}: {e}")
-            # Use empty values for this day if there was an error
-            scrobbles = []
-            total_time = {"hours": 0, "minutes": 0, "seconds": 0, "total_seconds": 0}
+        # Check cache first (unless it's today)
+        cached_data = None
+        if day_str != today_str:
+            if username in daily_stats_cache and day_str in daily_stats_cache[username]:
+                cached_data = daily_stats_cache[username][day_str]
+                logger.debug(f"Using cached daily stats for {username} on {day_str}")
+
+        if cached_data:
+            total_time = cached_data["total_time"]
+            scrobble_count = cached_data["scrobble_count"]
+            scrobbles = (
+                []
+            )  # We don't have the list of scrobbles, but we don't need them for weekly stats
+        else:
+            # Get scrobbles for this day
+            try:
+                scrobbles, total_time = get_scrobbles_and_time(username, day_str)
+                scrobble_count = len(scrobbles)
+
+                # Note: get_scrobbles_and_time now saves to cache automatically, so we don't need to do it here
+            except Exception as e:
+                logger.error(
+                    f"Error getting scrobbles for {username} on {day_str}: {e}"
+                )
+                # Use empty values for this day if there was an error
+                scrobbles = []
+                total_time = {
+                    "hours": 0,
+                    "minutes": 0,
+                    "seconds": 0,
+                    "total_seconds": 0,
+                }
+                scrobble_count = 0
 
         # Format day name
         day_name = current_date.strftime("%A")  # Full day name (Monday, Tuesday, etc.)
@@ -274,7 +360,7 @@ def get_weekly_listening_data(username, start_date_str):
                 "date": day_str,
                 "short_date": short_date,
                 "total_time": total_time,
-                "scrobble_count": len(scrobbles),
+                "scrobble_count": scrobble_count,
                 "total_seconds": total_time["total_seconds"],
                 "hours": total_time["hours"],
                 "minutes": total_time["minutes"],
@@ -300,6 +386,11 @@ def get_scrobbles_and_time(username, date_str):
 
     # Calculate total listening time
     total_time = calculate_listening_time(scrobbles)
+
+    # Save to daily stats cache (even if empty)
+    save_daily_stats_to_cache(
+        username, date_str, {"total_time": total_time, "scrobble_count": len(scrobbles)}
+    )
 
     return scrobbles, total_time
 

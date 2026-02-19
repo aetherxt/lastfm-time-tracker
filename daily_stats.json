@@ -1,0 +1,134 @@
+{
+    "daily_stats": {
+        "testuser": {
+            "2026-02-12": {
+                "total_time": {
+                    "hours": 0,
+                    "minutes": 6,
+                    "seconds": 20,
+                    "total_seconds": 380
+                },
+                "scrobble_count": 2
+            },
+            "2026-02-13": {
+                "total_time": {
+                    "hours": 0,
+                    "minutes": 6,
+                    "seconds": 20,
+                    "total_seconds": 380
+                },
+                "scrobble_count": 2
+            },
+            "2026-02-14": {
+                "total_time": {
+                    "hours": 0,
+                    "minutes": 6,
+                    "seconds": 20,
+                    "total_seconds": 380
+                },
+                "scrobble_count": 2
+            },
+            "2026-02-15": {
+                "total_time": {
+                    "hours": 0,
+                    "minutes": 6,
+                    "seconds": 20,
+                    "total_seconds": 380
+                },
+                "scrobble_count": 2
+            },
+            "2026-02-16": {
+                "total_time": {
+                    "hours": 0,
+                    "minutes": 6,
+                    "seconds": 20,
+                    "total_seconds": 380
+                },
+                "scrobble_count": 2
+            },
+            "2026-02-17": {
+                "total_time": {
+                    "hours": 0,
+                    "minutes": 6,
+                    "seconds": 20,
+                    "total_seconds": 380
+                },
+                "scrobble_count": 2
+            },
+            "2026-02-18": {
+                "total_time": {
+                    "hours": 0,
+                    "minutes": 6,
+                    "seconds": 20,
+                    "total_seconds": 380
+                },
+                "scrobble_count": 2
+            }
+        },
+        "aetherxt": {
+            "2026-02-13": {
+                "total_time": {
+                    "hours": 3,
+                    "minutes": 15,
+                    "seconds": 29,
+                    "total_seconds": 11729
+                },
+                "scrobble_count": 47
+            },
+            "2026-02-14": {
+                "total_time": {
+                    "hours": 3,
+                    "minutes": 38,
+                    "seconds": 51,
+                    "total_seconds": 13131
+                },
+                "scrobble_count": 53
+            },
+            "2026-02-15": {
+                "total_time": {
+                    "hours": 6,
+                    "minutes": 53,
+                    "seconds": 44,
+                    "total_seconds": 24824
+                },
+                "scrobble_count": 104
+            },
+            "2026-02-16": {
+                "total_time": {
+                    "hours": 4,
+                    "minutes": 31,
+                    "seconds": 42,
+                    "total_seconds": 16302
+                },
+                "scrobble_count": 63
+            },
+            "2026-02-17": {
+                "total_time": {
+                    "hours": 5,
+                    "minutes": 30,
+                    "seconds": 35,
+                    "total_seconds": 19835
+                },
+                "scrobble_count": 77
+            },
+            "2026-02-18": {
+                "total_time": {
+                    "hours": 1,
+                    "minutes": 12,
+                    "seconds": 27,
+                    "total_seconds": 4347
+                },
+                "scrobble_count": 19
+            },
+            "2026-02-19": {
+                "total_time": {
+                    "hours": 1,
+                    "minutes": 20,
+                    "seconds": 0,
+                    "total_seconds": 4800
+                },
+                "scrobble_count": 22
+            }
+        }
+    }
+}
